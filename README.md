@@ -11,7 +11,5 @@
    ```
 2. Rebuild the bot.
    do:
-   ```
-docker compose build
-docker compose up
-   ```
+   ```docker compose build
+docker compose up```
