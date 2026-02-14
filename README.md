@@ -10,7 +10,8 @@
    editable = false
    ```
 2. Rebuild the bot.
-   do: ```
+   do:
+   ```
 docker compose build
 docker compose up
    ```
