@@ -1,7 +1,7 @@
 # Ballsdex-leaderboard-pack-v3
 
 
-1. Put this into extra.toml
+1. Put this into extra.toml in config
    ```toml
    [[ballsdex.packages]]
    location = "git+https://github.com/ErlandArchives/Ballsdex-leaderboard-pack-v3.git"
@@ -11,4 +11,7 @@
    ```
 2. Rebuild the bot.
    do:  
-   ```docker compose build  docker compose up```
+   ```bash
+   docker compose build
+   docker compose up
+   ```
