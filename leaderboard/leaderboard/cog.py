@@ -44,6 +44,7 @@ class Leaderboard(commands.Cog):
 
 
         embed.description = text
+        embed.footer = "Made by @unitedstatesoferland"
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
         await interaction.followup.send(embed=embed, ephemeral=True)
