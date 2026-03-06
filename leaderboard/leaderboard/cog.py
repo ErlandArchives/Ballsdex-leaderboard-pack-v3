@@ -16,17 +16,29 @@ class Leaderboard(commands.Cog):
         self.bot = bot
 
     @app_commands.command(name="leaderboard", description=f"Show the top players of {settings.bot_name}!")
-    async def leaderboard(self, interaction: discord.Interaction["BallsDexBot"]):
+    async def leaderboard(self, interaction: discord.Interaction["BallsDexBot"], economy: bool = False):
         """
         Displays the most addicted i mean best players of this dex
         """
         await interaction.response.defer(ephemeral=True, thinking=True)
+
+        if economy:
+            if not settings.currency_name:
+                await interaction.followup.send("Currency is __not__ enabled on this bot.")
+                return
         
-        players = await sync_to_async(
-            lambda: list(
-                Player.objects.annotate(ball_count=Count("balls")).order_by("-ball_count")[:10]
-            )
-        )()
+        if not economy:
+            players = await sync_to_async(
+                lambda: list(
+                    Player.objects.annotate(ball_count=Count("balls")).order_by("-ball_count")[:10]
+                )
+            )()
+        else:
+            players = await sync_to_async(
+                lambda: list(
+                    Player.objects.order_by("-money")[:10]
+                )
+            )()
 
         if not players:
             await interaction.followup.send("No players found.", ephemeral=True)
@@ -37,14 +49,19 @@ class Leaderboard(commands.Cog):
             color=discord.Color.gold()
         )
 
-        text = ""
-        for i, player in enumerate(players, start=1):
-            user = self.bot.get_user(player.discord_id) or await self.bot.fetch_user(player.discord_id)
-            text += f"**{i}. {user.name}** — {settings.plural_collectible_name}: {player.ball_count}\n"
-
+        if economy == False:
+            text = ""
+            for i, player in enumerate(players, start=1):
+                user = self.bot.get_user(player.discord_id) or await self.bot.fetch_user(player.discord_id)
+                text += f"**{i}. {user.name}** — {settings.plural_collectible_name}: {player.ball_count}\n"
+        else:
+            text = ""
+            for i, player in enumerate(players, start=1):
+                user = self.bot.get_user(player.discord_id) or await self.bot.fetch_user(player.discord_id)
+                text += f"**{i}. {user.name}** — {player.money}{settings.currency_symbol}\n"
 
         embed.description = text
-        embed.footer = "Made by @unitedstatesoferland"
+        embed.set_footer(text="Made by @unitedstatesoferland")
         embed.set_thumbnail(url=interaction.user.display_avatar.url)
 
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        await interaction.followup.send(embed=embed)
