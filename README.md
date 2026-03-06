@@ -15,3 +15,5 @@ This is my first package for ballsdex v3, so its pretty small. Its pretty handy 
    docker compose build
    docker compose up
    ```
+## Commands
+*   **/Leaderboard** - Gives the top 10 players with the most balls in your dex! useful? not really. Adding more parameters soon.
