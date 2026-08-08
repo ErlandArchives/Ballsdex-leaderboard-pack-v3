@@ -10,6 +10,7 @@ from ballsdex.core.utils.transformers import (
     BallEnabledTransform,
     SpecialEnabledTransform
 )
+import asyncio
 
 
 
@@ -59,6 +60,7 @@ class component_view(discord.ui.LayoutView):
         self.page = self.max_pages() - 1
         self.page_func()
         await interaction.response.edit_message(view=self)
+
     def max_pages(self):
         return max(1, (len(self.players) - 1) // self.pople_per_page + 1)
 
@@ -75,10 +77,10 @@ class component_view(discord.ui.LayoutView):
                     media=self.interaction.client.user.display_avatar.url,
                 ),
             )
-        elif self.collectible:
+        elif self.collectible or self.special:
             top_text = discord.ui.Section(
                 discord.ui.TextDisplay(content=f"# {settings.bot_name} Leaderboard"),
-                discord.ui.TextDisplay(content=f"Top {len(self.users)} players that own {self.collectible}(s)"),
+                discord.ui.TextDisplay(content=f"Top {len(self.users)} players that own {self.special} {self.collectible}(s)"),
                 accessory=discord.ui.Thumbnail(
                     media=self.interaction.client.user.display_avatar.url,
                 ),
@@ -103,32 +105,39 @@ class component_view(discord.ui.LayoutView):
             user = self.users[i - 1]
             if self.economy:
                 leaderboard_player_text = discord.ui.Section(
-                            discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.money} {settings.currency_name}"),
+                    discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.money} {settings.currency_name}"),
+                    accessory=discord.ui.Thumbnail(
+                        media=user.display_avatar.url,
+                    ),
+                )
+            elif self.collectible and self.special:
+                leaderboard_player_text = discord.ui.Section(
+                            discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {self.special} {self.collectible}(s)"),
                             accessory=discord.ui.Thumbnail(
                                 media=user.display_avatar.url,
                             ),
                         )
             elif self.collectible:
                 leaderboard_player_text = discord.ui.Section(
-                            discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {self.collectible}(s)"),
-                            accessory=discord.ui.Thumbnail(
-                                media=user.display_avatar.url,
-                            ),
-                        )
+                    discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {self.collectible}(s)"),
+                    accessory=discord.ui.Thumbnail(
+                        media=user.display_avatar.url,
+                    ),
+                )
             elif self.special:
                 leaderboard_player_text = discord.ui.Section(
-                            discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {self.special} balls"),
-                            accessory=discord.ui.Thumbnail(
-                                media=user.display_avatar.url,
-                            ),
-                        )
+                    discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {self.special} balls"),
+                    accessory=discord.ui.Thumbnail(
+                        media=user.display_avatar.url,
+                    ),
+                )
             else:
                 leaderboard_player_text = discord.ui.Section(
-                            discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {settings.plural_collectible_name}"),
-                            accessory=discord.ui.Thumbnail(
-                                media=user.display_avatar.url,
-                            ),
-                        )
+                    discord.ui.TextDisplay(content=f"{i}. **{user.display_name}**\n{player.ball_count} {settings.plural_collectible_name}"),
+                    accessory=discord.ui.Thumbnail(
+                        media=user.display_avatar.url,
+                    ),
+                )
             container.add_item(leaderboard_player_text)
         skp1 = discord.ui.Button(style=discord.ButtonStyle.secondary, label="<<", disabled=self.page == 0)
         prev = discord.ui.Button(style=discord.ButtonStyle.primary,   label="Previous", disabled=self.page == 0)
@@ -136,11 +145,14 @@ class component_view(discord.ui.LayoutView):
         skpl = discord.ui.Button(style=discord.ButtonStyle.secondary, label=">>", disabled=self.page >= self.max_pages() - 1)
 
         skp1.callback = self.skp1
-        prev.callback   = self.prv
-        nxt.callback   = self.nxt
-        skpl.callback  = self.skpl
-
-        container.add_item(discord.ui.ActionRow(skp1, prev, nxt, skpl))
+        prev.callback = self.prv
+        nxt.callback = self.nxt
+        skpl.callback = self.skpl
+        if self.max_pages() != 1:
+            page_text = discord.ui.TextDisplay(content=f"-# **PAGE** {self.page + 1}/{self.max_pages()}")
+            container.add_item(page_text)
+            container.add_item(discord.ui.ActionRow(skp1, prev, nxt, skpl))
+            
         self.add_item(container)
         self.add_item(discord.ui.TextDisplay(content="-# made by @unitedstatesoferland/cewlgruyere"))
     
@@ -158,48 +170,41 @@ class Leaderboard(commands.Cog):
     @app_commands.command(name="leaderboard", description=f"Shows the top players of {settings.bot_name}!")
     async def leaderboard(self, interaction: discord.Interaction["BallsDexBot"], economy: bool = False, ephemeral: bool = False, amount: int = 10, collectible: BallEnabledTransform | None = None, special: SpecialEnabledTransform | None = None,):
         await interaction.response.defer(ephemeral=ephemeral, thinking=True)
+        if amount > 50:
+            await interaction.followup.send("Please select a number lower than 50", ephemeral=True)
+            return
         if economy:
-            if not settings.currency_name:
-                await interaction.followup.send("Currency is __not__ enabled on this bot.")
-                return
-        users = []
-        if economy != True:
-            if not collectible and not special:
-                players = await sync_to_async(
-                    lambda: list(
-                        Player.objects.annotate(ball_count=Count("balls")).order_by("-ball_count")[:amount]
-                    )
-                )()
-            elif not special:
-                players = await sync_to_async(
-                    lambda: list(
-                        Player.objects.annotate(ball_count=Count("balls", filter=Q(balls__ball=collectible))).order_by("-ball_count")[:amount]
-                    )
-                )()
-            else:
-                players = await sync_to_async(
-                    lambda: list(
-                        Player.objects.annotate(ball_count=Count("balls", filter=Q(balls__special_id=special.id))).order_by("-ball_count")[:amount]
-                    )
-                )()
+            queryset = Player.objects.filter(money__gt=0).order_by("-money")
         else:
-            players = await sync_to_async(
-                lambda: list(
-                    Player.objects.order_by("-money")[:amount]
-                )
-            )()
+            filters = Q()
+
+            if collectible:
+                filters &= Q(balls__ball=collectible)
+
+            if special:
+                filters &= Q(balls__special_id=special.id)
+
+            queryset = Player.objects.annotate(
+                ball_count=Count("balls", filter=filters)
+            ).order_by("-ball_count")
+
+        players = await sync_to_async(
+            lambda: list(queryset[:amount])
+        )()
         if not players:
             await interaction.followup.send("No players found.", ephemeral=True)
             return
         if economy == True and (collectible or special):
             await interaction.followup.send("economy and collectible/special are mutually exclusive", ephemeral=True)
             return
-        if special and collectible:
-            await interaction.followup.send("collectible and special are mutually exclusive", ephemeral=True)
-            return
-        for random_ass_var, player in enumerate(players, start=1):
-            users.append(self.bot.get_user(player.discord_id) or await self.bot.fetch_user(player.discord_id))
-
+        users = await asyncio.gather(
+            *(
+                self.bot.fetch_user(player.discord_id)
+                if not self.bot.get_user(player.discord_id)
+                else asyncio.sleep(0, result=self.bot.get_user(player.discord_id))
+                for player in players
+            )
+        )
         view = component_view(self.bot, interaction, players, amount, users, collectible, economy, special)
         await interaction.followup.send(view=view)
 
