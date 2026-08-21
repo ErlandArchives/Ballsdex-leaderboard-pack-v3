@@ -170,8 +170,8 @@ class Leaderboard(commands.Cog):
     @app_commands.command(name="leaderboard", description=f"Shows the top players of {settings.bot_name}!")
     async def leaderboard(self, interaction: discord.Interaction["BallsDexBot"], economy: bool = False, ephemeral: bool = False, amount: int = 10, collectible: BallEnabledTransform | None = None, special: SpecialEnabledTransform | None = None,):
         await interaction.response.defer(ephemeral=ephemeral, thinking=True)
-        if amount > 50:
-            await interaction.followup.send("Please select a number lower than 50", ephemeral=True)
+        if amount > 150:
+            await interaction.followup.send("Please select a number lower than 150", ephemeral=True)
             return
         if economy:
             queryset = Player.objects.filter(money__gt=0).order_by("-money")
@@ -197,16 +197,24 @@ class Leaderboard(commands.Cog):
         if economy == True and (collectible or special):
             await interaction.followup.send("economy and collectible/special are mutually exclusive", ephemeral=True)
             return
-        users = await asyncio.gather(
-            *(
-                self.bot.fetch_user(player.discord_id)
-                if not self.bot.get_user(player.discord_id)
-                else asyncio.sleep(0, result=self.bot.get_user(player.discord_id))
-                for player in players
-            )
-        )
+        users = await self.get_peple(players)
         view = component_view(self.bot, interaction, players, amount, users, collectible, economy, special)
         await interaction.followup.send(view=view)
 
 
 
+    async def get_peple(self, players):
+        semaphore = asyncio.Semaphore(10)
+
+        async def fetch(player):
+            user = self.bot.get_user(player.discord_id)
+
+            if user is not None:
+                return user
+
+            async with semaphore:
+                return await self.bot.fetch_user(player.discord_id)
+
+        return await asyncio.gather(
+            *(fetch(player) for player in players)
+        )
