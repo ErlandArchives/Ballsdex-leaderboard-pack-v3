@@ -11,6 +11,8 @@ authors = [
     { name = "cewlgruyere", email = "gruyere@remicrodex.com" },
 ]
 
+keywords = ["fun", "Stats", "Economy"]
+
 readme = "README.md"
 
 dependencies = []
