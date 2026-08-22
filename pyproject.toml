@@ -2,7 +2,7 @@
 name = "leaderboard"
 version = "1.0.51"
 
-description = "Leaderboard extension for BallsDex created by gruyere"
+description = "the original Leaderboard extension for V3 by gruyere"
 
 license = "Apache-2.0"
 license-files = ["LICENSE"]
